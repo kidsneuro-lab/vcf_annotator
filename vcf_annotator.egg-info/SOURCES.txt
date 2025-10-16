@@ -1,0 +1,17 @@
+pyproject.toml
+tests/test_cli.py
+vcf_annotator/__init__.py
+vcf_annotator/chromosome.py
+vcf_annotator/cli.py
+vcf_annotator/processor.py
+vcf_annotator/transcripts.py
+vcf_annotator/variant_utils.py
+vcf_annotator.egg-info/PKG-INFO
+vcf_annotator.egg-info/SOURCES.txt
+vcf_annotator.egg-info/dependency_links.txt
+vcf_annotator.egg-info/requires.txt
+vcf_annotator.egg-info/top_level.txt
+vcf_annotator/annotators/__init__.py
+vcf_annotator/annotators/base.py
+vcf_annotator/annotators/custom_vcf.py
+vcf_annotator/annotators/splice_distance.py

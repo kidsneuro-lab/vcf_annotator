@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vcf-annotator"
+version = "0.1.0"
+description = "CLI tool for annotating VCF files with splice junction distances and custom VCF fields."
+authors = [{ name = "Codex CLI" }]
+requires-python = ">=3.9"
+dependencies = [
+    "pysam>=0.22",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
