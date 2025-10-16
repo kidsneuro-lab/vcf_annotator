@@ -68,6 +68,7 @@ def test_splice_annotation_with_mane(tmp_path):
         info_value(rec, "SJ_TRANSCRIPT"): rec for rec in entries
     }
     assert set(info_by_transcript) == {"NM_001160170.4", "XM_047422397.1"}
+    assert "MANE" in entries[0].header.info
 
     for rec in info_by_transcript.values():
         assert info_value(rec, "SJ_VARIANT_TYPE") == "snp"
@@ -76,12 +77,16 @@ def test_splice_annotation_with_mane(tmp_path):
 
     assert info_value(info_by_transcript["NM_001160170.4"], "SJ_DACC") == "1084"
     assert info_value(info_by_transcript["XM_047422397.1"], "SJ_DACC") == "17"
+    assert info_value(info_by_transcript["NM_001160170.4"], "MANE") == 1
+    assert info_value(info_by_transcript["XM_047422397.1"], "MANE") == 0
 
     rows = read_tsv(tsv_path)
     c_rows = [row for row in rows if row["CHROM"] == "chr8" and row["POS"] == "18210109" and row["ALT"] == "C"]
     assert len(c_rows) == 2
     assert {row["SJ_TRANSCRIPT"] for row in c_rows} == {"NM_001160170.4", "XM_047422397.1"}
     assert all(row["SJ_DDON"] != "NA" for row in c_rows)
+    mane_values = {row["SJ_TRANSCRIPT"]: row["MANE"] for row in c_rows}
+    assert mane_values == {"NM_001160170.4": "1", "XM_047422397.1": "0"}
 
 
 def test_splice_annotation_without_mane(tmp_path):
@@ -105,6 +110,7 @@ def test_splice_annotation_without_mane(tmp_path):
     transcripts = info_value(minus[0], "SJ_TRANSCRIPT")
     assert transcripts == "NM_130786.4"
     assert info_value(minus[0], "SJ_VARIANT_TYPE") == "snp"
+    assert "MANE" not in minus[0].header.info
 
 
 def test_custom_vcf_annotation(tmp_path):

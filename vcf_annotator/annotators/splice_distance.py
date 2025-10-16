@@ -19,9 +19,10 @@ class SpliceJunctionDistanceAnnotator(Annotator):
     Annotates distance to nearest splice donor/acceptor for overlapping transcripts.
     """
 
-    def __init__(self, transcript_index, prefix: str):
+    def __init__(self, transcript_index, prefix: str, include_mane: bool = False):
         self.transcripts = transcript_index
         self.prefix = prefix.upper()
+        self.include_mane = include_mane
         self.info_fields = self._build_info_names()
 
     def _build_info_names(self) -> Dict[str, str]:
@@ -36,7 +37,13 @@ class SpliceJunctionDistanceAnnotator(Annotator):
             "dacc_region_type": "DACC_REGION_TYPE",
             "dacc_region_no": "DACC_REGION_NO",
         }
-        return {key: f"{self.prefix}_{suffix}" for key, suffix in base.items()}
+        if self.include_mane:
+            base["mane_flag"] = "MANE"
+
+        info = {key: f"{self.prefix}_{suffix}" for key, suffix in base.items() if key != "mane_flag"}
+        if self.include_mane:
+            info["mane_flag"] = "MANE"
+        return info
 
     def register_fields(self, header) -> None:
         info = self.info_fields
@@ -67,6 +74,10 @@ class SpliceJunctionDistanceAnnotator(Annotator):
         header.add_line(
             f"##INFO=<ID={info['dacc_region_no']},Number=A,Type=String,Description=\"{self.prefix}: Region number used for acceptor distance.\">"
         )
+        if self.include_mane:
+            header.add_line(
+                "##INFO=<ID=MANE,Number=1,Type=Integer,Description=\"Transcript originates from supplied MANE list (1=yes,0=no).\">"
+            )
 
     def output_fields(self):
         return list(self.info_fields.values())
@@ -92,6 +103,8 @@ class SpliceJunctionDistanceAnnotator(Annotator):
                 info["dacc_region_type"]: "NA",
                 info["dacc_region_no"]: "NA",
             }
+            if self.include_mane:
+                row[self.info_fields["mane_flag"]] = 0
             result.rows.append(row)
             result.tsv_rows.append(row.copy())
             return result
@@ -115,6 +128,8 @@ class SpliceJunctionDistanceAnnotator(Annotator):
                 info["dacc_region_type"]: acceptor_result.region_type,
                 info["dacc_region_no"]: acceptor_result.region_number,
             }
+            if self.include_mane:
+                row[self.info_fields["mane_flag"]] = 1 if getattr(transcript, "mane", False) else 0
 
             result.rows.append(row)
             result.tsv_rows.append(row.copy())

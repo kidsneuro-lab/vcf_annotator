@@ -110,9 +110,9 @@ def test_chromosome_mapper_translates_between_styles():
 
 
 def test_splice_annotator_reports_distance_and_region():
-    transcript = build_transcript()
+    transcript = build_transcript(name="TX1MANE")
     index = DummyTranscriptIndex([transcript])
-    annotator = SpliceJunctionDistanceAnnotator(index, "sj")
+    annotator = SpliceJunctionDistanceAnnotator(index, "sj", include_mane=True)
 
     record = DummyRecord("chr1", 201, "A", ("C",))
     context = VariantContext(record, "C", 0)
@@ -127,18 +127,21 @@ def test_splice_annotator_reports_distance_and_region():
     assert row["SJ_DDON"] == "100"
     assert row["SJ_DDON_REGION_TYPE"] == "exon"
     assert row["SJ_DDON_REGION_NO"] == "2"
+    assert row["MANE"] == 1
 
     assert result.tsv_rows[0]["SJ_DACC"] == "0"
+    assert result.tsv_rows[0]["MANE"] == 1
 
 
 def test_splice_annotator_handles_missing_transcripts():
-    annotator = SpliceJunctionDistanceAnnotator(DummyTranscriptIndex([]), "sj")
+    annotator = SpliceJunctionDistanceAnnotator(DummyTranscriptIndex([]), "sj", include_mane=True)
     record = DummyRecord("chr1", 101, "A", ("C",))
     context = VariantContext(record, "C", 0)
     result = annotator.annotate(context)
 
     assert result.rows[0]["SJ_TRANSCRIPT"] == "NA"
     assert result.rows[0]["SJ_DDON"] == "NA"
+    assert result.rows[0]["MANE"] == 0
 
 
 def test_format_distance_helper():

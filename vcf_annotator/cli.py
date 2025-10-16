@@ -79,7 +79,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                 dist_config.get("mane"),
             )
             annotators.append(
-                SpliceJunctionDistanceAnnotator(transcript_index, dist_config["prefix"])
+                SpliceJunctionDistanceAnnotator(
+                    transcript_index,
+                    dist_config["prefix"],
+                    include_mane=dist_config.get("mane") is not None,
+                )
             )
             LOG.info(
                 "Loaded transcript model (%d transcripts) using prefix %s",
