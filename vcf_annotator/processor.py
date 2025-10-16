@@ -45,6 +45,8 @@ class VariantProcessor:
                 record_count = 0
                 variant_count = 0
                 for record in reader:
+                    record = record.copy()
+                    record.translate(header)
                     record_count += 1
                     alts = record.alts or []
                     if not alts:
@@ -111,7 +113,12 @@ class VariantProcessor:
 
             for field in extra_fields:
                 values = per_field_values.get(field, ["NA"] * len(alts))
-                row[field] = values[alt_index] if alt_index < len(values) else "NA"
+                if alt_index < len(values):
+                    value = values[alt_index]
+                else:
+                    value = "NA"
+
+                row[field] = f"{field}={value}" if value != "NA" else "NA"
 
             rows.append(row)
 
