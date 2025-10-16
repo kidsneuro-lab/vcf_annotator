@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
@@ -18,18 +19,29 @@ def run_cli(args):
 
 def read_record_map(vcf_path: Path):
     with pysam.VariantFile(str(vcf_path)) as reader:
-        return {f"{rec.chrom}:{rec.pos}": rec for rec in reader}
+        records = {}
+        for rec in reader:
+            alts = rec.alts or ["."]
+            for alt in alts:
+                key = f"{rec.chrom}:{rec.pos}:{alt}"
+                records.setdefault(key, []).append(rec)
+        return records
 
 
-def _info_values(record, key):
+def read_tsv(path: Path):
+    with path.open() as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        return list(reader)
+
+
+def info_value(record, key):
     value = record.info.get(key)
-    if value is None:
-        return []
     if isinstance(value, tuple):
-        return list(value)
-    return [value]
-
-
+        if not value:
+            return None
+        if len(value) == 1:
+            return value[0]
+    return value
 def test_splice_annotation_with_mane(tmp_path):
     input_vcf = DATA_DIR / "input.vcf"
     output_vcf = tmp_path / "annotated.vcf"
@@ -49,17 +61,27 @@ def test_splice_annotation_with_mane(tmp_path):
     )
 
     records = read_record_map(output_vcf)
-    first = records["chr8:18210109"]
+    entries = records["chr8:18210109:C"]
+    assert len(entries) == 2
 
-    transcripts = _info_values(first, "SJ_TRANSCRIPT")[0]
-    assert "NM_001160170.4" in transcripts
-    assert _info_values(first, "SJ_VARIANT_TYPE")[0] == "snp"
-    assert _info_values(first, "SJ_DDON")[0] != "NA"
-    assert _info_values(first, "SJ_DACC")[0] != "NA"
+    info_by_transcript = {
+        info_value(rec, "SJ_TRANSCRIPT"): rec for rec in entries
+    }
+    assert set(info_by_transcript) == {"NM_001160170.4", "XM_047422397.1"}
 
-    tsv_content = tsv_path.read_text().splitlines()
-    assert tsv_content[0].startswith("CHROM")
-    assert any("SJ_DDON" in line for line in tsv_content[1:])
+    for rec in info_by_transcript.values():
+        assert info_value(rec, "SJ_VARIANT_TYPE") == "snp"
+        assert info_value(rec, "SJ_DDON") != "NA"
+        assert info_value(rec, "SJ_DACC") != "NA"
+
+    assert info_value(info_by_transcript["NM_001160170.4"], "SJ_DACC") == "1084"
+    assert info_value(info_by_transcript["XM_047422397.1"], "SJ_DACC") == "17"
+
+    rows = read_tsv(tsv_path)
+    c_rows = [row for row in rows if row["CHROM"] == "chr8" and row["POS"] == "18210109" and row["ALT"] == "C"]
+    assert len(c_rows) == 2
+    assert {row["SJ_TRANSCRIPT"] for row in c_rows} == {"NM_001160170.4", "XM_047422397.1"}
+    assert all(row["SJ_DDON"] != "NA" for row in c_rows)
 
 
 def test_splice_annotation_without_mane(tmp_path):
@@ -78,10 +100,11 @@ def test_splice_annotation_without_mane(tmp_path):
     )
 
     records = read_record_map(output_vcf)
-    minus = records["chr19:58347029"]
-    transcripts = _info_values(minus, "SJ_TRANSCRIPT")[0]
-    assert "NM_130786.4" in transcripts
-    assert _info_values(minus, "SJ_VARIANT_TYPE")[0] == "snp"
+    minus = records["chr19:58347029:T"]
+    assert len(minus) == 1
+    transcripts = info_value(minus[0], "SJ_TRANSCRIPT")
+    assert transcripts == "NM_130786.4"
+    assert info_value(minus[0], "SJ_VARIANT_TYPE") == "snp"
 
 
 def test_custom_vcf_annotation(tmp_path):
@@ -101,15 +124,17 @@ def test_custom_vcf_annotation(tmp_path):
     )
 
     records = read_record_map(output_vcf)
-    first = records["chr8:18210109"]
+    first = records["chr8:18210109:C"][0]
 
-    assert _info_values(first, "CLN_CLNSIG")[0] == "Pathogenic"
-    assert _info_values(first, "CLN_REVIEW")[0] == "criteria_provided"
+    assert info_value(first, "CLN_CLNSIG") == "Pathogenic"
+    assert info_value(first, "CLN_REVIEW") == "criteria_provided"
 
-    multi = records["chr19:58347029"]
-    clnsig_values = _info_values(multi, "CLN_CLNSIG")
-    assert clnsig_values[0] == "Benign"
-    assert clnsig_values[1] in {"NA", "Benign"}
+    benign = records["chr19:58347029:T"][0]
+    benign_alt = records["chr19:58347029:G"][0]
+    assert info_value(benign, "CLN_CLNSIG") == "Benign"
+    assert info_value(benign, "CLN_REVIEW") == "no_assertion"
+
+    assert info_value(benign_alt, "CLN_CLNSIG") in {"NA", "Benign"}
 
 
 def test_no_annotators_copies_input(tmp_path):
@@ -126,4 +151,10 @@ def test_no_annotators_copies_input(tmp_path):
     )
 
     assert output_vcf.exists()
-    assert output_vcf.read_text() == input_vcf.read_text()
+
+    with pysam.VariantFile(str(output_vcf)) as reader:
+        records = list(reader)
+
+    assert len(records) == 5
+    for rec in records:
+        assert len(rec.alts or []) <= 1

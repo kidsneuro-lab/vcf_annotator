@@ -40,7 +40,6 @@ class CustomVcfAnnotator(Annotator):
             records = self._iter_all()
 
         collected: Dict[str, List[str]] = {field: [] for field in self.fields}
-        tsv_rows = []
 
         for record in records:
             if record.pos != context.pos:
@@ -56,16 +55,14 @@ class CustomVcfAnnotator(Annotator):
                 if value_str is not None:
                     collected[field].append(value_str)
 
-            row = {self._info_name(field): collected[field][-1] if collected[field] else "NA" for field in self.fields}
-            tsv_rows.append(row)
-
         result = AnnotationResult()
+        row = {}
         for field, values in collected.items():
             key = self._info_name(field)
-            result.info[key] = "|".join(values) if values else "NA"
+            row[key] = "|".join(values) if values else "NA"
 
-        if tsv_rows:
-            result.tsv_rows.extend(tsv_rows)
+        result.rows.append(row)
+        result.tsv_rows.append(row.copy())
 
         return result
 

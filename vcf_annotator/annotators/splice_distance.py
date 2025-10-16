@@ -41,31 +41,31 @@ class SpliceJunctionDistanceAnnotator(Annotator):
     def register_fields(self, header) -> None:
         info = self.info_fields
         header.add_line(
-            f"##INFO=<ID={info['transcript']},Number=A,Type=String,Description=\"{self.prefix}: Transcript identifiers overlapping each ALT (pipe separated).\">"
+            f"##INFO=<ID={info['transcript']},Number=A,Type=String,Description=\"{self.prefix}: Transcript identifier for this transcript-specific record.\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['gene']},Number=A,Type=String,Description=\"{self.prefix}: Gene symbols overlapping each ALT (pipe separated).\">"
+            f"##INFO=<ID={info['gene']},Number=A,Type=String,Description=\"{self.prefix}: Gene symbol for the annotated transcript.\">"
         )
         header.add_line(
             f"##INFO=<ID={info['variant_type']},Number=A,Type=String,Description=\"{self.prefix}: Variant type per ALT classified as snp/ins/del/delins.\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['ddon']},Number=A,Type=String,Description=\"{self.prefix}: Distances to nearest splice donor per ALT (pipe separated per transcript, NA if unavailable).\">"
+            f"##INFO=<ID={info['ddon']},Number=A,Type=String,Description=\"{self.prefix}: Distance to the nearest splice donor for this transcript (NA if unavailable).\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['ddon_region_type']},Number=A,Type=String,Description=\"{self.prefix}: Region type (exon/intron/NA) used for donor distance per ALT (pipe separated).\">"
+            f"##INFO=<ID={info['ddon_region_type']},Number=A,Type=String,Description=\"{self.prefix}: Region type (exon/intron/NA) used for donor distance.\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['ddon_region_no']},Number=A,Type=String,Description=\"{self.prefix}: Region number used for donor distance per ALT (pipe separated).\">"
+            f"##INFO=<ID={info['ddon_region_no']},Number=A,Type=String,Description=\"{self.prefix}: Region number used for donor distance.\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['dacc']},Number=A,Type=String,Description=\"{self.prefix}: Distances to nearest splice acceptor per ALT (pipe separated per transcript, NA if unavailable).\">"
+            f"##INFO=<ID={info['dacc']},Number=A,Type=String,Description=\"{self.prefix}: Distance to the nearest splice acceptor for this transcript (NA if unavailable).\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['dacc_region_type']},Number=A,Type=String,Description=\"{self.prefix}: Region type (exon/intron/NA) used for acceptor distance per ALT (pipe separated).\">"
+            f"##INFO=<ID={info['dacc_region_type']},Number=A,Type=String,Description=\"{self.prefix}: Region type (exon/intron/NA) used for acceptor distance.\">"
         )
         header.add_line(
-            f"##INFO=<ID={info['dacc_region_no']},Number=A,Type=String,Description=\"{self.prefix}: Region number used for acceptor distance per ALT (pipe separated).\">"
+            f"##INFO=<ID={info['dacc_region_no']},Number=A,Type=String,Description=\"{self.prefix}: Region number used for acceptor distance.\">"
         )
 
     def output_fields(self):
@@ -78,34 +78,25 @@ class SpliceJunctionDistanceAnnotator(Annotator):
         transcripts = self.transcripts.fetch(context.chrom, coords.start0, coords.end0)
         result = AnnotationResult()
 
+        info = self.info_fields
+
         if not transcripts:
-            for key in (
-                "transcript",
-                "gene",
-                "ddon",
-                "ddon_region_type",
-                "ddon_region_no",
-                "dacc",
-                "dacc_region_type",
-                "dacc_region_no",
-            ):
-                result.info[self.info_fields[key]] = "NA"
-            result.info[self.info_fields["variant_type"]] = variant_type
+            row = {
+                info["variant_type"]: variant_type,
+                info["transcript"]: "NA",
+                info["gene"]: "NA",
+                info["ddon"]: "NA",
+                info["ddon_region_type"]: "NA",
+                info["ddon_region_no"]: "NA",
+                info["dacc"]: "NA",
+                info["dacc_region_type"]: "NA",
+                info["dacc_region_no"]: "NA",
+            }
+            result.rows.append(row)
+            result.tsv_rows.append(row.copy())
             return result
 
-        transcript_ids: List[str] = []
-        gene_names: List[str] = []
-        ddon_values: List[str] = []
-        ddon_region_types: List[str] = []
-        ddon_region_numbers: List[str] = []
-        dacc_values: List[str] = []
-        dacc_region_types: List[str] = []
-        dacc_region_numbers: List[str] = []
-
         for transcript in transcripts:
-            transcript_ids.append(transcript.name)
-            gene_names.append(transcript.gene)
-
             donor_result = self._distance_to_site(
                 transcript, coords, is_donor=True
             )
@@ -113,38 +104,21 @@ class SpliceJunctionDistanceAnnotator(Annotator):
                 transcript, coords, is_donor=False
             )
 
-            ddon_values.append(_format_distance(donor_result.distance))
-            ddon_region_types.append(donor_result.region_type)
-            ddon_region_numbers.append(donor_result.region_number)
-            dacc_values.append(_format_distance(acceptor_result.distance))
-            dacc_region_types.append(acceptor_result.region_type)
-            dacc_region_numbers.append(acceptor_result.region_number)
+            row = {
+                info["variant_type"]: variant_type,
+                info["transcript"]: transcript.name,
+                info["gene"]: transcript.gene,
+                info["ddon"]: _format_distance(donor_result.distance),
+                info["ddon_region_type"]: donor_result.region_type,
+                info["ddon_region_no"]: donor_result.region_number,
+                info["dacc"]: _format_distance(acceptor_result.distance),
+                info["dacc_region_type"]: acceptor_result.region_type,
+                info["dacc_region_no"]: acceptor_result.region_number,
+            }
 
-            # TSV row
-            result.tsv_rows.append(
-                {
-                    "transcript": transcript.name,
-                    "gene": transcript.gene,
-                    "variant_type": variant_type,
-                    "ddon": ddon_values[-1],
-                    "ddon_region_type": ddon_region_types[-1],
-                    "ddon_region_no": ddon_region_numbers[-1],
-                    "dacc": dacc_values[-1],
-                    "dacc_region_type": dacc_region_types[-1],
-                    "dacc_region_no": dacc_region_numbers[-1],
-                }
-            )
+            result.rows.append(row)
+            result.tsv_rows.append(row.copy())
 
-        info = self.info_fields
-        result.info[info["variant_type"]] = variant_type
-        result.info[info["transcript"]] = "|".join(transcript_ids) if transcript_ids else "NA"
-        result.info[info["gene"]] = "|".join(gene_names) if gene_names else "NA"
-        result.info[info["ddon"]] = "|".join(ddon_values) if ddon_values else "NA"
-        result.info[info["ddon_region_type"]] = "|".join(ddon_region_types) if ddon_region_types else "NA"
-        result.info[info["ddon_region_no"]] = "|".join(ddon_region_numbers) if ddon_region_numbers else "NA"
-        result.info[info["dacc"]] = "|".join(dacc_values) if dacc_values else "NA"
-        result.info[info["dacc_region_type"]] = "|".join(dacc_region_types) if dacc_region_types else "NA"
-        result.info[info["dacc_region_no"]] = "|".join(dacc_region_numbers) if dacc_region_numbers else "NA"
         return result
 
     def _distance_to_site(

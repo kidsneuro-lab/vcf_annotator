@@ -2,60 +2,41 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, List, Mapping, MutableMapping, Optional
+from typing import List, Mapping, MutableMapping, Optional
 
 
 @dataclass
 class AnnotationResult:
-    """
-    Container for results produced by an annotator.
+    """Container for annotator output grouped into per-row dictionaries."""
 
-    Attributes:
-        info: Mapping of INFO field names to values to be merged into the
-            variant record. Values can be scalars or iterables. Lists are
-            converted to tuples when applied to pysam records.
-        tsv_rows: Optional collection of per-variant rows for TSV output.
-            Each row is a mapping of column name to value.
-    """
-
-    info: MutableMapping[str, object] = field(default_factory=dict)
+    rows: List[MutableMapping[str, object]] = field(default_factory=list)
     tsv_rows: List[Mapping[str, object]] = field(default_factory=list)
 
     def merge(self, other: "AnnotationResult") -> None:
-        """Merge another result into this one."""
-        for key, value in other.info.items():
-            if key not in self.info:
-                self.info[key] = value
-                continue
+        """Merge another result, broadcasting single rows where needed."""
 
-            existing = self.info[key]
-            merged = _merge_values(existing, value)
-            self.info[key] = merged
+        other_rows = [dict(row) for row in (other.rows or [{}])]
 
-        self.tsv_rows.extend(other.tsv_rows)
+        if not self.rows:
+            self.rows = other_rows
+        else:
+            if len(other_rows) == len(self.rows):
+                for idx, row in enumerate(other_rows):
+                    self.rows[idx].update(row)
+            elif len(other_rows) == 1:
+                filler = other_rows[0]
+                for row in self.rows:
+                    row.update(filler)
+            elif len(self.rows) == 1:
+                base = dict(self.rows[0])
+                self.rows = [dict(base) for _ in range(len(other_rows))]
+                for idx, row in enumerate(other_rows):
+                    self.rows[idx].update(row)
+            else:
+                raise ValueError("Incompatible annotation row counts during merge.")
 
-
-def _merge_values(existing: object, new_value: object) -> object:
-    """
-    Merge two INFO values, preserving order and deduplicating where appropriate.
-    """
-    if existing is None:
-        return new_value
-    if new_value is None:
-        return existing
-
-    if isinstance(existing, (list, tuple)):
-        existing_iter = list(existing)
-    else:
-        existing_iter = [existing]
-
-    if isinstance(new_value, (list, tuple)):
-        new_iter: Iterable[object] = new_value
-    else:
-        new_iter = [new_value]
-
-    combined = existing_iter + list(new_iter)
-    return tuple(combined)
+        if other.tsv_rows:
+            self.tsv_rows.extend(other.tsv_rows)
 
 
 class Annotator(ABC):

@@ -60,15 +60,23 @@ def build_transcript(name: str = "TX1", strand: str = "+"):
     )
 
 
-def test_annotation_result_merge_handles_scalars_and_sequences():
-    first = AnnotationResult(info={"A": "X"}, tsv_rows=[{"A": "X"}])
-    second = AnnotationResult(info={"A": "Y", "B": ["Z", "Q"]}, tsv_rows=[{"B": "Z"}])
+def test_annotation_result_merge_broadcasts_single_row_values():
+    first = AnnotationResult(rows=[{"A": "X"}])
+    second = AnnotationResult(rows=[{"B": "Y"}])
 
     first.merge(second)
 
-    assert first.info["A"] == ("X", "Y")
-    assert first.info["B"] == ["Z", "Q"]
-    assert first.tsv_rows == [{"A": "X"}, {"B": "Z"}]
+    assert first.rows == [{"A": "X", "B": "Y"}]
+
+
+def test_annotation_result_merge_expands_existing_rows():
+    base = AnnotationResult(rows=[{"A": "X"}, {"A": "Z"}])
+    extra = AnnotationResult(rows=[{"B": "Y"}])
+
+    base.merge(extra)
+
+    assert base.rows[0]["B"] == "Y"
+    assert base.rows[1]["B"] == "Y"
 
 
 def test_variant_context_variant_type_classification():
@@ -109,15 +117,18 @@ def test_splice_annotator_reports_distance_and_region():
     record = DummyRecord("chr1", 201, "A", ("C",))
     context = VariantContext(record, "C", 0)
     result = annotator.annotate(context)
+    assert len(result.rows) == 1
+    row = result.rows[0]
 
-    assert result.info["SJ_TRANSCRIPT"] == transcript.name
-    assert result.info["SJ_GENE"] == transcript.gene
-    assert result.info["SJ_VARIANT_TYPE"] == "snp"
-    assert result.info["SJ_DACC"] == "0"
-    assert result.info["SJ_DDON"] == "100"
-    assert result.info["SJ_DDON_REGION_TYPE"] == "exon"
-    assert result.info["SJ_DDON_REGION_NO"] == "2"
-    assert result.tsv_rows[0]["dacc"] == "0"
+    assert row["SJ_TRANSCRIPT"] == transcript.name
+    assert row["SJ_GENE"] == transcript.gene
+    assert row["SJ_VARIANT_TYPE"] == "snp"
+    assert row["SJ_DACC"] == "0"
+    assert row["SJ_DDON"] == "100"
+    assert row["SJ_DDON_REGION_TYPE"] == "exon"
+    assert row["SJ_DDON_REGION_NO"] == "2"
+
+    assert result.tsv_rows[0]["SJ_DACC"] == "0"
 
 
 def test_splice_annotator_handles_missing_transcripts():
@@ -126,8 +137,8 @@ def test_splice_annotator_handles_missing_transcripts():
     context = VariantContext(record, "C", 0)
     result = annotator.annotate(context)
 
-    assert result.info["SJ_TRANSCRIPT"] == "NA"
-    assert result.info["SJ_DDON"] == "NA"
+    assert result.rows[0]["SJ_TRANSCRIPT"] == "NA"
+    assert result.rows[0]["SJ_DDON"] == "NA"
 
 
 def test_format_distance_helper():
@@ -156,8 +167,8 @@ def test_custom_vcf_annotator_fetches_matching_records(tmp_path):
 
     result = annotator.annotate(context)
 
-    assert result.info["CLN_CLNSIG"] == "Benign"
-    assert result.tsv_rows == [{"CLN_CLNSIG": "Benign"}]
+    assert result.rows[0]["CLN_CLNSIG"] == "Benign"
+    assert result.tsv_rows[0]["CLN_CLNSIG"] == "Benign"
 
     annotator.close()
 
@@ -171,7 +182,7 @@ def test_custom_vcf_annotator_returns_na_for_missing(tmp_path):
 
     result = annotator.annotate(context)
 
-    assert result.info["CLN_CLNSIG"] == "NA"
-    assert result.tsv_rows == []
+    assert result.rows[0]["CLN_CLNSIG"] == "NA"
+    assert result.tsv_rows[0]["CLN_CLNSIG"] == "NA"
 
     annotator.close()

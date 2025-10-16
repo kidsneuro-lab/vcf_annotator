@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -106,12 +105,8 @@ def main(argv: Optional[List[str]] = None) -> int:
 
         if not annotators:
             LOG.warning(
-                "No annotators configured; attempting to produce single-allelic output without annotations."
+                "No annotators configured; producing single-allelic output without additional annotations."
             )
-            _copy_single_allelic(effective_input, output_path)
-            if tsv_path:
-                _write_basic_tsv(output_path, tsv_path)
-            return 0
 
         processor = VariantProcessor(
             ProcessorConfig(
@@ -185,35 +180,6 @@ def _normalise_vcf(path: Path) -> Path:
 
     return Path(tmp_path)
 
-
-def _copy_single_allelic(input_path: Path, output_path: Path) -> None:
-    if hasattr(pysam, "bcftools"):
-        try:
-            pysam.bcftools.norm(
-                "--multiallelics",
-                "-any",
-                "-o",
-                str(output_path),
-                str(input_path),
-            )
-            LOG.info("Single-allelic output generated via bcftools norm.")
-            return
-        except Exception as exc:  # pragma: no cover
-            LOG.warning("bcftools norm failed (%s); falling back to plain copy.", exc)
-
-    shutil.copyfile(input_path, output_path)
-    LOG.info("Copied input VCF to %s without modifications.", output_path)
-
-
-def _write_basic_tsv(vcf_path: Path, tsv_path: Path) -> None:
-    with pysam.VariantFile(str(vcf_path)) as reader, tsv_path.open("w") as handle:
-        header = ["CHROM", "POS", "ID", "REF", "ALT"]
-        handle.write("\t".join(header) + "\n")
-        for record in reader:
-            alts = record.alts or ["."]
-            for alt in alts:
-                row = [record.chrom, str(record.pos), record.id or ".", record.ref, alt]
-                handle.write("\t".join(row) + "\n")
 
 
 if __name__ == "__main__":

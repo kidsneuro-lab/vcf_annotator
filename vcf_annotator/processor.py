@@ -45,29 +45,52 @@ class VariantProcessor:
                 record_count = 0
                 variant_count = 0
                 for record in reader:
-                    record = record.copy()
-                    record.translate(header)
                     record_count += 1
-                    alts = record.alts or []
+                    alts = list(record.alts or [])
+
                     if not alts:
                         writer.write(record)
+                        if tsv_writer is not None:
+                            row = self._build_tsv_row(
+                                record,
+                                ".",
+                                {},
+                                getattr(tsv_writer, "_extra_fields", []),
+                            )
+                            tsv_writer.writerow(row)
                         continue
 
                     per_alt_results = self._annotate_record(record, alts)
-                    per_field_values = self._collect_per_field(alts, per_alt_results)
 
-                    for key, values in per_field_values.items():
-                        record.info[key] = tuple(values)
+                    for alt_index, alt in enumerate(alts):
+                        aggregate = per_alt_results[alt_index]
+                        row_infos = aggregate.rows or [dict()]
 
-                    writer.write(record)
-                    if tsv_writer is not None:
-                        rows = self._build_tsv_rows(record, alts, per_field_values)
-                        for row in rows:
-                            tsv_writer.writerow(row)
-                    variant_count += len(alts)
+                        for info_map in row_infos:
+                            new_record = self._create_single_alt_record(
+                                writer,
+                                record,
+                                alt,
+                                alt_index,
+                                alts,
+                            )
+                            for key, value in info_map.items():
+                                new_record.info[key] = value
+                            writer.write(new_record)
+
+                            if tsv_writer is not None:
+                                row = self._build_tsv_row(
+                                    record,
+                                    alt,
+                                    info_map,
+                                    getattr(tsv_writer, "_extra_fields", []),
+                                )
+                                tsv_writer.writerow(row)
+
+                        variant_count += len(row_infos)
 
                     if record_count % self.config.log_every == 0:
-                        LOG.info("Processed %d VCF records (%d ALT alleles)", record_count, variant_count)
+                        LOG.info("Processed %d VCF records (%d annotated rows)", record_count, variant_count)
 
         close_writer(tsv_writer)
 
@@ -87,42 +110,110 @@ class VariantProcessor:
             results.append(aggregate)
         return results
 
-    def _collect_per_field(self, alts: List[str], per_alt_results: List[AnnotationResult]) -> Dict[str, List[str]]:
-        num_alts = len(alts)
-        by_field: Dict[str, List[str]] = {}
+    def _build_tsv_row(
+        self,
+        record,
+        alt: str,
+        info_map,
+        extra_fields: List[str],
+    ) -> Dict[str, str]:
+        row = {
+            "CHROM": record.chrom,
+            "POS": str(record.pos),
+            "ID": record.id or ".",
+            "REF": record.ref,
+            "ALT": alt,
+        }
 
-        for alt_index, result in enumerate(per_alt_results):
-            for key, value in result.info.items():
-                by_field.setdefault(key, ["NA"] * num_alts)
-                by_field[key][alt_index] = _as_string(value)
+        for field in extra_fields:
+            value = info_map.get(field, "NA") if info_map else "NA"
+            row[field] = str(value)
 
-        return by_field
+        return row
 
-    def _build_tsv_rows(self, record, alts: List[str], per_field_values: Dict[str, List[str]]) -> List[Dict[str, str]]:
-        rows: List[Dict[str, str]] = []
-        extra_fields = set(per_field_values.keys())
+    def _create_single_alt_record(
+        self,
+        writer,
+        base_record,
+        alt: str,
+        alt_index: int,
+        alts: List[str],
+    ):
+        new_record = writer.new_record(
+            contig=base_record.chrom,
+            start=base_record.start,
+            stop=base_record.stop,
+            alleles=(base_record.ref, alt),
+        )
 
-        for alt_index, alt in enumerate(alts):
-            row = {
-                "CHROM": record.chrom,
-                "POS": str(record.pos),
-                "ID": record.id or ".",
-                "REF": record.ref,
-                "ALT": alt,
-            }
+        new_record.id = base_record.id
+        new_record.qual = base_record.qual
+        new_record.pos = base_record.pos
 
-            for field in extra_fields:
-                values = per_field_values.get(field, ["NA"] * len(alts))
-                if alt_index < len(values):
-                    value = values[alt_index]
-                else:
-                    value = "NA"
+        new_record.filter.clear()
+        for filter_id in base_record.filter.keys():
+            new_record.filter.add(filter_id)
 
-                row[field] = f"{field}={value}" if value != "NA" else "NA"
+        original_header = base_record.header
 
-            rows.append(row)
+        for key in base_record.info.keys():
+            info_def = original_header.info.get(key)
+            value = base_record.info[key]
 
-        return rows
+            if info_def is not None and info_def.number == 0:
+                if value:
+                    new_record.info[key] = True
+                continue
+
+            selected = self._extract_info_value(value, info_def, alt_index)
+            if selected is not None:
+                new_record.info[key] = selected
+
+        for sample in base_record.samples:
+            new_record.samples[sample] = base_record.samples[sample]
+
+        return new_record
+
+    def _extract_info_value(self, value, info_def, alt_index: int):
+        if value is None:
+            return None
+
+        if info_def is None:
+            return value
+
+        number = info_def.number
+
+        if number == "A":
+            if isinstance(value, tuple):
+                if len(value) > alt_index:
+                    return value[alt_index]
+                return value[-1] if value else None
+            return value
+
+        if number == "R":
+            if isinstance(value, tuple):
+                idx = alt_index + 1
+                if len(value) > idx:
+                    return value[idx]
+                return value[-1] if value else None
+            return value
+
+        if number == "G":
+            return value
+
+        if number == ".":
+            return value
+
+        if isinstance(number, int):
+            if number == 0:
+                return None
+            if number == 1:
+                if isinstance(value, tuple):
+                    return value[0] if value else None
+                return value
+            return value
+
+        return value
 
     def _init_tsv_writer(self, path: Optional[Path], annotators: Iterable) -> Optional[csv.DictWriter]:
         if path is None:
@@ -139,15 +230,8 @@ class VariantProcessor:
         writer.writeheader()
         writer._handle = handle  # type: ignore[attr-defined]
         writer._columns = columns  # type: ignore[attr-defined]
+        writer._extra_fields = columns[5:]  # type: ignore[attr-defined]
         return writer
-
-
-def _as_string(value) -> str:
-    if value is None:
-        return "NA"
-    if isinstance(value, (list, tuple)):
-        return "|".join(str(item) for item in value)
-    return str(value)
 
 
 def close_writer(writer: Optional[csv.DictWriter]) -> None:
