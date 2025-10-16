@@ -41,12 +41,12 @@ class DummyTranscriptIndex:
 
 
 def build_transcript(name: str = "TX1", strand: str = "+"):
-    exons = [Region(0, 100, 1, "exon"), Region(200, 300, 2, "exon")]
-    introns = [Region(100, 200, 1, "intron")]
+    exons = [Region(1, 100, 1, "exon"), Region(201, 300, 2, "exon")]
+    introns = [Region(101, 200, 1, "intron")]
     chrom = "chr1"
     if strand == "-":
-        exons = [Region(200, 300, 1, "exon"), Region(0, 100, 2, "exon")]
-        introns = [Region(100, 200, 1, "intron")]
+        exons = [Region(201, 300, 1, "exon"), Region(1, 100, 2, "exon")]
+        introns = [Region(101, 200, 1, "intron")]
     return Transcript(
         name=name,
         chrom=chrom,
@@ -123,13 +123,13 @@ def test_splice_annotator_reports_distance_and_region():
     assert row["SJ_TRANSCRIPT"] == transcript.name
     assert row["SJ_GENE"] == transcript.gene
     assert row["SJ_VARIANT_TYPE"] == "snp"
-    assert row["SJ_DACC"] == "0"
-    assert row["SJ_DDON"] == "100"
-    assert row["SJ_DDON_REGION_TYPE"] == "exon"
-    assert row["SJ_DDON_REGION_NO"] == "2"
+    assert row["SJ_DACC"] == "1"
+    assert row["SJ_DDON"] == "NA"
+    assert row["SJ_DDON_REGION_TYPE"] == "NA"
+    assert row["SJ_DDON_REGION_NO"] == "NA"
     assert row["MANE"] == 1
 
-    assert result.tsv_rows[0]["SJ_DACC"] == "0"
+    assert result.tsv_rows[0]["SJ_DACC"] == "1"
     assert result.tsv_rows[0]["MANE"] == 1
 
 

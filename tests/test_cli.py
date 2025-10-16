@@ -70,13 +70,16 @@ def test_splice_annotation_with_mane(tmp_path):
     assert set(info_by_transcript) == {"NM_001160170.4", "XM_047422397.1"}
     assert "MANE" in entries[0].header.info
 
-    for rec in info_by_transcript.values():
-        assert info_value(rec, "SJ_VARIANT_TYPE") == "snp"
-        assert info_value(rec, "SJ_DDON") != "NA"
-        assert info_value(rec, "SJ_DACC") != "NA"
+    expected_don = {"NM_001160170.4": "-72", "XM_047422397.1": "-72"}
+    expected_acc = {"NM_001160170.4": "NA", "XM_047422397.1": "18"}
 
-    assert info_value(info_by_transcript["NM_001160170.4"], "SJ_DACC") == "1084"
-    assert info_value(info_by_transcript["XM_047422397.1"], "SJ_DACC") == "17"
+    for transcript, rec in info_by_transcript.items():
+        assert info_value(rec, "SJ_VARIANT_TYPE") == "snp"
+        assert info_value(rec, "SJ_DDON") == expected_don[transcript]
+        assert info_value(rec, "SJ_DACC") == expected_acc[transcript]
+
+    assert info_value(info_by_transcript["NM_001160170.4"], "SJ_DDON") == "-72"
+    assert info_value(info_by_transcript["XM_047422397.1"], "SJ_DACC") == "18"
     assert info_value(info_by_transcript["NM_001160170.4"], "MANE") == 1
     assert info_value(info_by_transcript["XM_047422397.1"], "MANE") == 0
 
@@ -161,6 +164,6 @@ def test_no_annotators_copies_input(tmp_path):
     with pysam.VariantFile(str(output_vcf)) as reader:
         records = list(reader)
 
-    assert len(records) == 5
+    assert len(records) == 6
     for rec in records:
         assert len(rec.alts or []) <= 1

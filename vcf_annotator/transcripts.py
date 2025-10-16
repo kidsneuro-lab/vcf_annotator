@@ -8,15 +8,16 @@ from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 @dataclass(frozen=True)
 class Region:
-    """Represents an exon or intron within a transcript."""
+    """Represents an exon or intron within a transcript (1-based inclusive coordinates)."""
 
-    start: int  # 0-based inclusive
-    end: int  # 0-based exclusive
+    start: int  # 1-based inclusive
+    end: int  # 1-based inclusive
     number: int  # 1-based within the transcript for the region type
     region_type: str  # "exon" or "intron"
 
-    def contains(self, pos0: int) -> bool:
-        return self.start <= pos0 < self.end
+    def contains(self, pos1: int) -> bool:
+        """Return True if the 1-based position falls within the region."""
+        return self.start <= pos1 <= self.end
 
 
 @dataclass
@@ -37,20 +38,20 @@ class Transcript:
         """Return True if the transcript overlaps the interval [start0, end0)."""
         return not (end0 <= self.tx_start or start0 >= self.tx_end)
 
-    def locate(self, pos0: int) -> Optional[Region]:
+    def locate(self, pos1: int) -> Optional[Region]:
         """
-        Identify the region (exon or intron) containing the 0-based position.
+        Identify the region (exon or intron) containing the 1-based position.
         """
         for region in self.exons:
-            if region.contains(pos0):
+            if region.contains(pos1):
                 return region
         for region in self.introns:
-            if region.contains(pos0):
+            if region.contains(pos1):
                 return region
         return None
 
     def donors(self) -> Sequence[int]:
-        """Return donor site positions (0-based coordinate at exon boundary)."""
+        """Return donor site positions (1-based coordinate at exon boundary)."""
         donors: List[int] = []
         if self.strand == "+":
             for exon in self.exons[:-1]:
@@ -61,7 +62,7 @@ class Transcript:
         return donors
 
     def acceptors(self) -> Sequence[int]:
-        """Return acceptor site positions (0-based coordinate at intron boundary)."""
+        """Return acceptor site positions (1-based coordinate at intron boundary)."""
         acceptors: List[int] = []
         if self.strand == "+":
             for exon in self.exons[1:]:
@@ -153,7 +154,7 @@ def _build_regions(exons: Iterable[Tuple[int, int]], strand: str, region_type: s
 
     regions: List[Region] = []
     for idx, (start, end) in enumerate(ordered, start=1):
-        regions.append(Region(start=start, end=end, number=idx, region_type=region_type))
+        regions.append(Region(start=start + 1, end=end, number=idx, region_type=region_type))
     return regions
 
 
@@ -168,7 +169,7 @@ def _build_introns(exons: Iterable[Tuple[int, int]], strand: str) -> List[Region
 
     regions: List[Region] = []
     for idx, (start, end) in enumerate(intron_pairs, start=1):
-        regions.append(Region(start=start, end=end, number=idx, region_type="intron"))
+        regions.append(Region(start=start + 1, end=end, number=idx, region_type="intron"))
     return regions
 
 
@@ -212,4 +213,3 @@ def build_transcript_index(
         mapped = replace(transcript, chrom=chrom_mapper.to_vcf(transcript.chrom))
         transcripts.append(mapped)
     return TranscriptIndex(transcripts)
-

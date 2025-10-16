@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional
 
 from ..variant_utils import VariantCoordinates, compute_variant_bounds
 from .base import AnnotationResult, Annotator, VariantContext
+from ..transcripts import Region
 
 
 @dataclass
@@ -139,40 +140,42 @@ class SpliceJunctionDistanceAnnotator(Annotator):
     def _distance_to_site(
         self, transcript, coords: VariantCoordinates, is_donor: bool
     ) -> DistanceResult:
-        sites: Sequence[int]
-        if is_donor:
-            sites = tuple(transcript.donors())
-        else:
-            sites = tuple(transcript.acceptors())
-
-        if not sites:
-            return DistanceResult(distance=None, region_type="NA", region_number="NA")
-
         anchors = self._anchors(transcript, coords)
         best_distance = None
-        best_region: Optional[Tuple[str, str]] = None
+        best_region: Optional[Region] = None
 
-        for site in sites:
-            for anchor_pos, region in anchors:
-                if anchor_pos is None:
-                    continue
-                distance = abs(anchor_pos - site)
-                if best_distance is None or distance < best_distance:
+        for anchor_pos, region in anchors:
+            if anchor_pos is None or region is None:
+                continue
+
+            if is_donor:
+                distance = self._donor_distance(transcript, anchor_pos, region)
+            else:
+                distance = self._acceptor_distance(transcript, anchor_pos, region)
+
+            if distance is None:
+                continue
+
+            if best_distance is None or abs(distance) < abs(best_distance):
+                best_distance = distance
+                best_region = region
+            elif best_distance is not None and abs(distance) == abs(best_distance):
+                # Prefer intronic assignments when equidistant to align with boundary rules.
+                if best_region and best_region.region_type == "exon" and region.region_type == "intron":
                     best_distance = distance
-                    best_region = (
-                        region.region_type if region else "NA",
-                        str(region.number) if region else "NA",
-                    )
+                    best_region = region
 
         if best_distance is None:
             return DistanceResult(distance=None, region_type="NA", region_number="NA")
 
-        region_type, region_number = best_region or ("NA", "NA")
+        region_type = best_region.region_type if best_region else "NA"
+        region_number = str(best_region.number) if best_region else "NA"
         return DistanceResult(distance=best_distance, region_type=region_type, region_number=region_number)
 
     def _anchors(self, transcript, coords: VariantCoordinates):
-        start_anchor = coords.start0
-        end_anchor = max(coords.end0 - 1, coords.start0)
+        start_anchor = coords.start0 + 1
+        end_anchor0 = max(coords.end0 - 1, coords.start0)
+        end_anchor = end_anchor0 + 1
 
         start_region = transcript.locate(start_anchor)
         end_region = transcript.locate(end_anchor)
@@ -181,6 +184,47 @@ class SpliceJunctionDistanceAnnotator(Annotator):
             (start_anchor, start_region),
             (end_anchor, end_region),
         )
+
+    def _donor_distance(self, transcript, pos1: int, region: Region) -> Optional[int]:
+        if region.region_type == "intron":
+            if transcript.strand == "+":
+                return pos1 - region.start + 1
+            return region.end - pos1 + 1
+
+        # Exonic region
+        intron = self._intron_after_exon(transcript, region.number)
+        if intron is None:
+            return None
+
+        if transcript.strand == "+":
+            return -(region.end - pos1 + 1)
+        return -(pos1 - region.start + 1)
+
+    def _acceptor_distance(self, transcript, pos1: int, region: Region) -> Optional[int]:
+        if region.region_type == "intron":
+            if transcript.strand == "+":
+                return -(region.end - pos1 + 1)
+            return -(pos1 - region.start + 1)
+
+        intron = self._intron_before_exon(transcript, region.number)
+        if intron is None:
+            return None
+
+        if transcript.strand == "+":
+            return pos1 - region.start + 1
+        return region.end - pos1 + 1
+
+    @staticmethod
+    def _intron_after_exon(transcript, exon_number: int) -> Optional[Region]:
+        if exon_number > len(transcript.introns):
+            return None
+        return transcript.introns[exon_number - 1]
+
+    @staticmethod
+    def _intron_before_exon(transcript, exon_number: int) -> Optional[Region]:
+        if exon_number <= 1:
+            return None
+        return transcript.introns[exon_number - 2]
 
 
 def _format_distance(value: Optional[int]) -> str:

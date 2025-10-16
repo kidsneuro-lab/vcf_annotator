@@ -66,10 +66,10 @@ def _expected_row(
             18210181,
             "G",
             "C",
-            [
-                _expected_row("NM_001160170.4", "NAT1", "snp", "1", "intron", "1", "-1011", "intron", "1", 1),
-                _expected_row("XM_047422397.1", "NAT1", "snp", "1", "intron", "5", "-1011", "intron", "5", 0),
-            ],
+                [
+                    _expected_row("NM_001160170.4", "NAT1", "snp", "1", "intron", "1", "-1012", "intron", "1", 1),
+                    _expected_row("XM_047422397.1", "NAT1", "snp", "1", "intron", "4", "-1012", "intron", "4", 0),
+                ],
         )
     ],
 )
