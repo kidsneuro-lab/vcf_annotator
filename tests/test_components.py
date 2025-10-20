@@ -118,19 +118,25 @@ def test_splice_annotator_reports_distance_and_region():
     context = VariantContext(record, "C", 0)
     result = annotator.annotate(context)
     assert len(result.rows) == 1
-    row = result.rows[0]
 
-    assert row["SJ_TRANSCRIPT"] == transcript.name
-    assert row["SJ_GENE"] == transcript.gene
-    assert row["SJ_VARIANT_TYPE"] == "snp"
-    assert row["SJ_DACC"] == "1"
-    assert row["SJ_DDON"] == "NA"
-    assert row["SJ_DDON_REGION_TYPE"] == "NA"
-    assert row["SJ_DDON_REGION_NO"] == "NA"
-    assert row["MANE"] == 1
+    value = result.rows[0]["SJ"]
+    parts = value.split(",")
+    assert len(parts) == 1
+    fields = parts[0].split("|")
 
-    assert result.tsv_rows[0]["SJ_DACC"] == "1"
-    assert result.tsv_rows[0]["MANE"] == 1
+    assert fields[0] == "C"
+    assert fields[1] == transcript.name
+    assert fields[2] == transcript.gene
+    assert fields[3] == "snp"
+    assert fields[4] == "NA"
+    assert fields[5] == "NA"
+    assert fields[6] == "NA"
+    assert fields[7] == "1"
+    assert fields[8] == "exon"
+    assert fields[9] == "2"
+    assert fields[10] == "1"
+
+    assert result.tsv_rows[0]["SJ"] == value
 
 
 def test_splice_annotator_handles_missing_transcripts():
@@ -139,9 +145,14 @@ def test_splice_annotator_handles_missing_transcripts():
     context = VariantContext(record, "C", 0)
     result = annotator.annotate(context)
 
-    assert result.rows[0]["SJ_TRANSCRIPT"] == "NA"
-    assert result.rows[0]["SJ_DDON"] == "NA"
-    assert result.rows[0]["MANE"] == 0
+    value = result.rows[0]["SJ"]
+    fields = value.split("|")
+
+    assert fields[0] == "C"
+    assert fields[1] == "NA"
+    assert fields[4] == "NA"
+    assert fields[-1] == "0"
+    assert result.tsv_rows[0]["SJ"] == value
 
 
 def test_format_distance_helper():

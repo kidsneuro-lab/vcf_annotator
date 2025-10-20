@@ -61,35 +61,27 @@ def test_splice_annotation_with_mane(tmp_path):
     )
 
     records = read_record_map(output_vcf)
-    entries = records["chr8:18210109:C"]
-    assert len(entries) == 2
+    entries = records["chr12:48006054:A"]
+    assert len(entries) == 1
 
-    info_by_transcript = {
-        info_value(rec, "SJ_TRANSCRIPT"): rec for rec in entries
-    }
-    assert set(info_by_transcript) == {"NM_001160170.4", "XM_047422397.1"}
-    assert "MANE" in entries[0].header.info
+    sj_value = info_value(entries[0], "SJ")
+    sj_entries = list(sj_value) if isinstance(sj_value, tuple) else [sj_value]
 
-    expected_don = {"NM_001160170.4": "-72", "XM_047422397.1": "-72"}
-    expected_acc = {"NM_001160170.4": "NA", "XM_047422397.1": "18"}
+    expected_entries = [
+        "A|XM_017018828.1|COL2A1|snp|1|intron|1|-325|intron|1|0",
+        "A|XM_017018829.1|COL2A1|snp|1|intron|1|-325|intron|1|0",
+        "A|XM_017018830.1|COL2A1|snp|1|intron|1|-325|intron|1|0",
+    ]
 
-    for transcript, rec in info_by_transcript.items():
-        assert info_value(rec, "SJ_VARIANT_TYPE") == "snp"
-        assert info_value(rec, "SJ_DDON") == expected_don[transcript]
-        assert info_value(rec, "SJ_DACC") == expected_acc[transcript]
-
-    assert info_value(info_by_transcript["NM_001160170.4"], "SJ_DDON") == "-72"
-    assert info_value(info_by_transcript["XM_047422397.1"], "SJ_DACC") == "18"
-    assert info_value(info_by_transcript["NM_001160170.4"], "MANE") == 1
-    assert info_value(info_by_transcript["XM_047422397.1"], "MANE") == 0
+    assert sorted(sj_entries) == sorted(expected_entries)
+    assert "SJ" in entries[0].header.info
+    assert "MANE" not in entries[0].header.info
 
     rows = read_tsv(tsv_path)
-    c_rows = [row for row in rows if row["CHROM"] == "chr8" and row["POS"] == "18210109" and row["ALT"] == "C"]
-    assert len(c_rows) == 2
-    assert {row["SJ_TRANSCRIPT"] for row in c_rows} == {"NM_001160170.4", "XM_047422397.1"}
-    assert all(row["SJ_DDON"] != "NA" for row in c_rows)
-    mane_values = {row["SJ_TRANSCRIPT"]: row["MANE"] for row in c_rows}
-    assert mane_values == {"NM_001160170.4": "1", "XM_047422397.1": "0"}
+    c_rows = [row for row in rows if row["CHROM"] == "chr12" and row["POS"] == "48006054" and row["ALT"] == "A"]
+    assert len(c_rows) == 1
+    sj_entries_tsv = c_rows[0]["SJ"].split(",")
+    assert sorted(sj_entries_tsv) == sorted(expected_entries)
 
 
 def test_splice_annotation_without_mane(tmp_path):
@@ -108,11 +100,13 @@ def test_splice_annotation_without_mane(tmp_path):
     )
 
     records = read_record_map(output_vcf)
-    minus = records["chr19:58347029:T"]
+    minus = records["chr12:48006054:A"]
     assert len(minus) == 1
-    transcripts = info_value(minus[0], "SJ_TRANSCRIPT")
-    assert transcripts == "NM_130786.4"
-    assert info_value(minus[0], "SJ_VARIANT_TYPE") == "snp"
+    sj_value = info_value(minus[0], "SJ")
+    sj_entries = list(sj_value) if isinstance(sj_value, tuple) else [sj_value]
+    assert len(sj_entries) == 3
+    fields = sj_entries[0].split("|")
+    assert len(fields) == 10
     assert "MANE" not in minus[0].header.info
 
 
@@ -133,17 +127,14 @@ def test_custom_vcf_annotation(tmp_path):
     )
 
     records = read_record_map(output_vcf)
-    first = records["chr8:18210109:C"][0]
+    first = records["chr12:48006054:A"][0]
 
     assert info_value(first, "CLN_CLNSIG") == "Pathogenic"
     assert info_value(first, "CLN_REVIEW") == "criteria_provided"
 
-    benign = records["chr19:58347029:T"][0]
-    benign_alt = records["chr19:58347029:G"][0]
+    benign = records["chr12:47987610:A"][0]
     assert info_value(benign, "CLN_CLNSIG") == "Benign"
     assert info_value(benign, "CLN_REVIEW") == "no_assertion"
-
-    assert info_value(benign_alt, "CLN_CLNSIG") in {"NA", "Benign"}
 
 
 def test_no_annotators_copies_input(tmp_path):

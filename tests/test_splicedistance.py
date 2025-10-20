@@ -32,7 +32,8 @@ def transcript_index():
     return build_transcript_index(gene_pred, mapper, mane_path=mane)
 
 
-def _expected_row(
+def _expected_entry(
+    allele: str,
     transcript: str,
     gene: str,
     variant_type: str,
@@ -43,19 +44,22 @@ def _expected_row(
     dacc_region_type: str,
     dacc_region_no: str,
     mane_flag: int,
-) -> dict[str, object]:
-    return {
-        "SJ_TRANSCRIPT": transcript,
-        "SJ_GENE": gene,
-        "SJ_VARIANT_TYPE": variant_type,
-        "SJ_DDON": ddon,
-        "SJ_DDON_REGION_TYPE": ddon_region_type,
-        "SJ_DDON_REGION_NO": ddon_region_no,
-        "SJ_DACC": dacc,
-        "SJ_DACC_REGION_TYPE": dacc_region_type,
-        "SJ_DACC_REGION_NO": dacc_region_no,
-        "MANE": mane_flag,
-    }
+) -> str:
+    return "|".join(
+        [
+            allele,
+            transcript,
+            gene,
+            variant_type,
+            ddon,
+            ddon_region_type,
+            ddon_region_no,
+            dacc,
+            dacc_region_type,
+            dacc_region_no,
+            str(mane_flag),
+        ]
+    )
 
 
 @pytest.mark.parametrize(
@@ -67,8 +71,8 @@ def _expected_row(
             "G",
             "C",
                 [
-                    _expected_row("NM_001160170.4", "NAT1", "snp", "1", "intron", "1", "-1012", "intron", "1", 1),
-                    _expected_row("XM_047422397.1", "NAT1", "snp", "1", "intron", "4", "-1012", "intron", "4", 0),
+                    _expected_entry("C", "NM_001160170.4", "NAT1", "snp", "1", "intron", "1", "-1012", "intron", "1", 1),
+                    _expected_entry("C", "XM_047422397.1", "NAT1", "snp", "1", "intron", "4", "-1012", "intron", "4", 0),
                 ],
         )
     ],
@@ -80,17 +84,13 @@ def test_splice_distance_annotations(transcript_index, chrom, pos, ref, alt, exp
 
     result = annotator.annotate(context)
 
-    expected_map = {row["SJ_TRANSCRIPT"]: row for row in expected_rows}
-    observed_map = {row["SJ_TRANSCRIPT"]: dict(row) for row in result.rows}
+    assert len(result.rows) == 1
+    assert len(result.tsv_rows) == 1
 
-    assert len(result.tsv_rows) == len(expected_rows)
-    
-    for tsv_row in result.tsv_rows:
-        transcript = tsv_row["SJ_TRANSCRIPT"]
-        for key, value in expected_map[transcript].items():
-            assert dict(tsv_row)[key] == value, f"Mismatch for {transcript} on {key}"
-    
-    assert observed_map == expected_map
+    observed_entries = result.rows[0]["SJ"].split(",")
+
+    assert sorted(observed_entries) == sorted(expected_rows)
+    assert result.tsv_rows[0]["SJ"] == result.rows[0]["SJ"]
 
 def test_format_distance_helper():
     assert _format_distance(5) == "5"
