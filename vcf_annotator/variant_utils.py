@@ -31,6 +31,14 @@ def compute_variant_bounds(pos: int, ref: str, alt: str) -> VariantCoordinates:
     if ref_len == 1 and alt_len > 1:
         # insertion occurs between positions start and start+1
         return VariantCoordinates(start0=start0, end0=start0 + 1)
+    
+    if ref_len > 1 and alt_len == 1:
+        # deletion spans multiple bases
+        end0 = start0 + ref_len
+        
+        # adjust start0 to point to the first deleted base
+        start0 = start0 + 1
+        return VariantCoordinates(start0=start0, end0=end0)
 
     # deletions and complex alleles cover the reference span
     end0 = start0 + ref_len
