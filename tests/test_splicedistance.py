@@ -127,7 +127,7 @@ def run_annotation(ctx):
 
 @then(
     parsers.parse(
-        'the SJ field should match the expected rows built from "{allele}" "{transcript_id}" "{gene}" "{variant_type}" "{donor_exon_rank}" "{donor_region}" "{donor_phase}" "{donor_distance}" "{acceptor_region}" "{acceptor_phase}" {mane_flag:d}'
+        'the SJ field should match the expected rows built from "{allele}" "{transcript_id}" "{gene}" "{variant_type}" "{donor_distance}" "{donor_region_type}" "{donor_region_number}" "{acceptor_distance}" "{acceptor_region_type}" "{acceptor_region_number}" {mane_flag:d}'
     )
 )
 def check_expected_rows(
@@ -136,12 +136,12 @@ def check_expected_rows(
     transcript_id,
     gene,
     variant_type,
-    donor_exon_rank,
-    donor_region,
-    donor_phase,
     donor_distance,
-    acceptor_region,
-    acceptor_phase,
+    donor_region_type,
+    donor_region_number,
+    acceptor_distance,
+    acceptor_region_type,
+    acceptor_region_number,
     mane_flag,
 ):
     expected_rows = [
@@ -150,12 +150,12 @@ def check_expected_rows(
             transcript_id,
             gene,
             variant_type,
-            donor_exon_rank,
-            donor_region,
-            donor_phase,
             donor_distance,
-            acceptor_region,
-            acceptor_phase,
+            donor_region_type,
+            donor_region_number,
+            acceptor_distance,
+            acceptor_region_type,
+            acceptor_region_number,
             mane_flag,
         )
     ]

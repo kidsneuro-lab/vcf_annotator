@@ -155,6 +155,6 @@ def test_no_annotators_copies_input(tmp_path):
     with pysam.VariantFile(str(output_vcf)) as reader:
         records = list(reader)
 
-    assert len(records) == 6
+    assert len(records) == 11
     for rec in records:
         assert len(rec.alts or []) <= 1
