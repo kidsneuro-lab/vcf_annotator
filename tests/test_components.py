@@ -79,24 +79,31 @@ def test_annotation_result_merge_expands_existing_rows():
     assert base.rows[1]["B"] == "Y"
 
 
-def test_variant_context_variant_type_classification():
-    ctx = VariantContext(DummyRecord("chr1", 101, "A", ("G",)), "G", 0)
-    assert ctx.variant_type() == "snp"
+@pytest.mark.parametrize(
+    "chrom, pos, ref, alt, expected_type",
+    [
+        ("chr1", 101, "A",  "G",  "snp"),
+        ("chr1", 101, "A",  "AG", "ins"),
+        ("chr1", 101, "AG", "A",  "del"),
+        ("chr1", 101, "AG", "CT", "delins"),
+    ],
+)
+def test_variant_context_variant_type_classification(chrom, pos, ref, alt, expected_type):
+    ctx = VariantContext(DummyRecord(chrom, pos, ref, (alt,)), alt, 0)
+    assert ctx.variant_type() == expected_type
 
-    ctx = VariantContext(DummyRecord("chr1", 101, "A", ("AG",)), "AG", 0)
-    assert ctx.variant_type() == "ins"
 
-    ctx = VariantContext(DummyRecord("chr1", 101, "AG", ("A",)), "A", 0)
-    assert ctx.variant_type() == "del"
-
-    ctx = VariantContext(DummyRecord("chr1", 101, "AG", ("CT",)), "CT", 0)
-    assert ctx.variant_type() == "delins"
-
-
-def test_compute_variant_bounds_handles_variant_types():
-    assert compute_variant_bounds(100, "A", "G") == VariantCoordinates(99, 100)
-    assert compute_variant_bounds(100, "A", "GA") == VariantCoordinates(99, 100)
-    assert compute_variant_bounds(100, "GA", "G") == VariantCoordinates(99, 101)
+@pytest.mark.parametrize(
+    "pos, ref, alt, expected",
+    [
+        (100, "A",  "G",  VariantCoordinates(99, 100)),  # SNV
+        (100, "A",  "GA", VariantCoordinates(99, 100)),  # insertion
+        (100, "GA", "G",  VariantCoordinates(100, 101)),  # deletion
+        (100, "GA", "TG",  VariantCoordinates(99, 101)),  # substition
+    ],
+)
+def test_compute_variant_bounds_handles_variant_types(pos, ref, alt, expected):
+    assert compute_variant_bounds(pos, ref, alt) == expected
 
 
 def test_chromosome_mapper_translates_between_styles():

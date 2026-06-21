@@ -15,6 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest>=7.0",
+    "pytest-bdd>=8.1.0",
 ]
 
 [tool.pytest.ini_options]

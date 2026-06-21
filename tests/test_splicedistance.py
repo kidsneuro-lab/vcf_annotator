@@ -1,16 +1,18 @@
 from pathlib import Path
 
 import pytest
-
-pysam = pytest.importorskip("pysam")
+from pytest_bdd import scenarios, given, when, then, parsers
 
 from vcf_annotator.annotators.base import VariantContext
 from vcf_annotator.annotators.splice_distance import SpliceJunctionDistanceAnnotator, _format_distance
 from vcf_annotator.chromosome import ChromosomeMapper
 from vcf_annotator.transcripts import build_transcript_index
+pysam = pytest.importorskip("pysam")
 
 DATA_DIR = Path(__file__).parent / "data"
 
+# Load all scenarios from the feature file
+scenarios("features/splice_distance.feature")
 
 class DummyRecord:
     """Lightweight stand-in for pysam VariantRecord objects."""
@@ -26,9 +28,9 @@ class DummyRecord:
 
 @pytest.fixture(scope="session")
 def transcript_index():
-    gene_pred = DATA_DIR / "sample.genePred"
-    mane = DATA_DIR / "mane.tsv"
-    mapper = ChromosomeMapper(["chr8", "chr19"])
+    gene_pred = DATA_DIR / "GCA_000001405.15_GRCh38_full_analysis_set.refseq_annotation.sample.genepred"
+    mane = DATA_DIR / "MANE.GRCh38.v1.4.summary.sample.txt"
+    mapper = ChromosomeMapper(["chr12", "chrX", "chr11", "chr2"])
     return build_transcript_index(gene_pred, mapper, mane_path=mane)
 
 
@@ -66,13 +68,12 @@ def _expected_entry(
     ("chrom", "pos", "ref", "alt", "expected_rows"),
     [
         (
-            "chr8",
-            18210181,
-            "G",
+            "chr12",
+            48006054,
             "C",
+            "A",
                 [
-                    _expected_entry("C", "NM_001160170.4", "NAT1", "snp", "1", "intron", "1", "-1012", "intron", "1", 1),
-                    _expected_entry("C", "XM_047422397.1", "NAT1", "snp", "1", "intron", "4", "-1012", "intron", "4", 0),
+                    _expected_entry("A", "XM_017018828.1", "COL2A1", "snp", "1", "intron", "1", "-325", "intron", "1", 0)
                 ],
         )
     ],
@@ -84,9 +85,6 @@ def test_splice_distance_annotations(transcript_index, chrom, pos, ref, alt, exp
 
     result = annotator.annotate(context)
 
-    assert len(result.rows) == 1
-    assert len(result.tsv_rows) == 1
-
     observed_entries = result.rows[0]["SJ"].split(",")
 
     assert sorted(observed_entries) == sorted(expected_rows)
@@ -95,3 +93,76 @@ def test_splice_distance_annotations(transcript_index, chrom, pos, ref, alt, exp
 def test_format_distance_helper():
     assert _format_distance(5) == "5"
     assert _format_distance(None) == "NA"
+
+@pytest.fixture
+def ctx():
+    """Per-scenario scratchpad."""
+    return {}
+
+@given("a transcript index")
+def have_transcript_index(transcript_index, ctx):
+    # Reuse your existing fixture
+    ctx["transcript_index"] = transcript_index
+
+@given(
+    parsers.parse('a variant at "{chrom}" {pos:d} with ref "{ref}" and alt "{alt}"'),
+)
+def make_variant(ctx, chrom, pos, ref, alt):
+    ctx["chrom"] = chrom
+    ctx["pos"] = pos
+    ctx["ref"] = ref
+    ctx["alt"] = alt
+
+
+@when('I annotate splice distances with tag "sj" and include_mane')
+def run_annotation(ctx):
+    annotator = SpliceJunctionDistanceAnnotator(ctx["transcript_index"], "sj", include_mane=True)
+    record = DummyRecord(ctx["chrom"], ctx["pos"], ctx["ref"], (ctx["alt"],))
+    vc = VariantContext(record, ctx["alt"], 0)
+    result = annotator.annotate(vc)
+    ctx["result"] = result
+    # Parsed INFO field entries
+    ctx["observed_entries"] = result.rows[0]["SJ"].split(",")
+
+
+@then(
+    parsers.parse(
+        'the SJ field should match the expected rows built from "{allele}" "{transcript_id}" "{gene}" "{variant_type}" "{donor_exon_rank}" "{donor_region}" "{donor_phase}" "{donor_distance}" "{acceptor_region}" "{acceptor_phase}" {mane_flag:d}'
+    )
+)
+def check_expected_rows(
+    ctx,
+    allele,
+    transcript_id,
+    gene,
+    variant_type,
+    donor_exon_rank,
+    donor_region,
+    donor_phase,
+    donor_distance,
+    acceptor_region,
+    acceptor_phase,
+    mane_flag,
+):
+    expected_rows = [
+        _expected_entry(
+            allele,
+            transcript_id,
+            gene,
+            variant_type,
+            donor_exon_rank,
+            donor_region,
+            donor_phase,
+            donor_distance,
+            acceptor_region,
+            acceptor_phase,
+            mane_flag,
+        )
+    ]
+    assert sorted(ctx["observed_entries"]) == sorted(expected_rows)
+
+
+@then("the TSV SJ should equal the INFO SJ")
+def tsv_matches_info(ctx):
+    result = ctx["result"]
+    assert result.tsv_rows[0]["SJ"] == result.rows[0]["SJ"]

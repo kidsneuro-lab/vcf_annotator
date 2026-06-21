@@ -1,9 +1,8 @@
 ##fileformat=VCFv4.2
-##contig=<ID=chr8>
-##contig=<ID=chr19>
+##contig=<ID=chr12>
 ##INFO=<ID=CLNSIG,Number=.,Type=String,Description="Clinical significance">
 ##INFO=<ID=REVIEW,Number=1,Type=String,Description="Review status">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
-chr8	18210109	clin1	T	C	.	PASS	CLNSIG=Pathogenic;REVIEW=criteria_provided
-chr8	18210180	clin2	A	AT	.	PASS	CLNSIG=Likely_pathogenic
-chr19	58347029	clin3	C	T	.	PASS	CLNSIG=Benign;REVIEW=no_assertion
+chr12	48006054	clin1	C	A	.	PASS	CLNSIG=Pathogenic;REVIEW=criteria_provided
+chr12	48006090	clin2	C	A	.	PASS	CLNSIG=Likely_pathogenic
+chr12	47987610	clin3	C	A	.	PASS	CLNSIG=Benign;REVIEW=no_assertion
