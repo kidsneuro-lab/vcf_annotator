@@ -3,14 +3,33 @@
 {
 	"name": "Python 3",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/python:1-3.12-bullseye",
+	"image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"openai.chatgpt",
-				"mechatroner.rainbow-csv"
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"mechatroner.rainbow-csv",
+				"alexkrechik.cucumberautocomplete"
 			]
 		}
+	},
+
+	// Environment variables to keep the container stateless and avoid stray files
+	"containerEnv": {
+		// Stop Python writing .pyc files / __pycache__ folders
+		"PYTHONDONTWRITEBYTECODE": "1",
+		// Send stdout/stderr straight through, unbuffered (better logging, no surprises)
+		"PYTHONUNBUFFERED": "1",
+		// Don't write .pyc cache files for the standard library either
+		"PYTHONPYCACHEPREFIX": "/tmp/pycache",
+		// Stop pip caching downloaded wheels/packages on disk
+		"PIP_NO_CACHE_DIR": "1",
+		// Skip pip's "a new version is available" check on every install
+		"PIP_DISABLE_PIP_VERSION_CHECK": "1",
+		// Stop pip leaving build artefacts around after installs
+		"PIP_NO_COMPILE": "1"
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
@@ -20,10 +39,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "pip3 install pip-tools && pip-compile --strip-extras --extra test pyproject.toml && pip-sync --user"
-
-	// Configure tool-specific properties.
-	// "customizations": {},
+	"postCreateCommand": "pip3 install --user pip-tools && pip-compile --strip-extras --extra test pyproject.toml && pip-sync --user"
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
