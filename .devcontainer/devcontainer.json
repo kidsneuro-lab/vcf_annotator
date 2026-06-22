@@ -28,6 +28,11 @@
 		"UV_LINK_MODE": "copy"
 	},
 
+	"mounts": [
+		"source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached",
+		"type=bind,source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/mambauser/.ssh,readonly"
+	],
+
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
 
