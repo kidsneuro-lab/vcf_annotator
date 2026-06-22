@@ -29,7 +29,7 @@ class DummyRecord:
 @pytest.fixture(scope="session")
 def transcript_index():
     gene_pred = DATA_DIR / "GCA_000001405.15_GRCh38_full_analysis_set.refseq_annotation.sample.genepred"
-    mane = DATA_DIR / "MANE.GRCh38.v1.4.summary.sample.txt"
+    mane = DATA_DIR / "MANE.GRCh38.v1.5.summary.sample.txt"
     mapper = ChromosomeMapper(["chr12", "chrX", "chr11", "chr2"])
     return build_transcript_index(gene_pred, mapper, mane_path=mane)
 
