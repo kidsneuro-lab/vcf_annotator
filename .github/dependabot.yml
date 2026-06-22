@@ -1,12 +1,45 @@
 # To get started with Dependabot version updates, you'll need to specify which
 # package ecosystems to update and where the package manifests are located.
-# Please see the documentation for more information:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-# https://containers.dev/guide/dependabot
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
 updates:
- - package-ecosystem: "devcontainers"
-   directory: "/"
-   schedule:
-     interval: weekly
+  - package-ecosystem: "uv"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+
+    # Reduce PR noise
+    open-pull-requests-limit: 10
+
+    commit-message:
+      prefix: "chore"
+
+    # Group related updates
+    groups:
+      dev-dependencies:
+        dependency-type: "development"
+
+      runtime-dependencies:
+        dependency-type: "production"
+
+    # Optional: keep version strategy conservative
+    versioning-strategy: increase-if-necessary
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "main"
+    schedule:
+      interval: "weekly"
+
+    open-pull-requests-limit: 10
+
+    commit-message:
+      prefix: "chore"
+
+    groups:
+      github-actions:
+        patterns:
+          - "*"
