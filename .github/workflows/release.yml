@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13.14"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@a9b33f02405f50e505f17ab8530e42a23200a5d1 # v8.2.0
+
+      - name: Install dependencies
+        run: uv sync --extra test
+
+      - name: Run tests
+        run: uv run pytest
+
+      - name: Create semantic version tag
+        id: tag_version
+        uses: anothrNick/github-tag-action@1.75.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: patch
+
+      - name: Prepare image metadata
+        run: |
+          image_name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          version_tag="${{ steps.tag_version.outputs.new_tag }}"
+          echo "IMAGE_NAME=${image_name}" >> "$GITHUB_ENV"
+          echo "VERSION_TAG=${version_tag}" >> "$GITHUB_ENV"
+
+      - name: Build Docker testing target
+        run: docker build --target testing -t vcf-annotator:test .
+
+      - name: Build release Docker image
+        run: |
+          docker build \
+            --target build \
+            -t "${IMAGE_NAME}:${VERSION_TAG}" \
+            -t "${IMAGE_NAME}:latest" \
+            .
+
+      - name: Test release Docker image
+        run: |
+          docker run --rm "${IMAGE_NAME}:${VERSION_TAG}" --help
+          docker run --rm \
+            -v "${PWD}:/work" \
+            "${IMAGE_NAME}:${VERSION_TAG}" \
+            --input /work/tests/data/input.vcf \
+            --output /tmp/annotated.vcf
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Docker image
+        run: |
+          docker push "${IMAGE_NAME}:${VERSION_TAG}"
+          docker push "${IMAGE_NAME}:latest"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.tag_version.outputs.new_tag }}
+          generate_release_notes: true
