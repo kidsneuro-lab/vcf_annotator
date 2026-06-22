@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import gzip
 from pathlib import Path
 
 import pytest
@@ -82,6 +83,42 @@ def test_splice_annotation_with_mane(tmp_path):
     assert len(c_rows) == 1
     sj_entries_tsv = c_rows[0]["SJ"].split(",")
     assert sorted(sj_entries_tsv) == sorted(expected_entries)
+
+
+def test_splice_annotation_with_gzipped_mane(tmp_path):
+    input_vcf = DATA_DIR / "input.vcf"
+    mane_gzip = tmp_path / "mane-compressed.tsv"
+    output_vcf = tmp_path / "annotated_gzip_mane.vcf"
+
+    with (
+        (DATA_DIR / "mane.tsv").open("rb") as source,
+        gzip.open(mane_gzip, "wb") as target,
+    ):
+        target.write(source.read())
+
+    run_cli(
+        [
+            "--input",
+            str(input_vcf),
+            "--output",
+            str(output_vcf),
+            "--annotate-dist",
+            f"{DATA_DIR / 'sample.genePred'};SJ;{mane_gzip}",
+        ]
+    )
+
+    records = read_record_map(output_vcf)
+    entries = records["chr12:48006054:A"]
+    sj_value = info_value(entries[0], "SJ")
+    sj_entries = list(sj_value) if isinstance(sj_value, tuple) else [sj_value]
+
+    expected_entries = [
+        "A|XM_017018828.1|COL2A1|snp|1|intron|1|-325|intron|1|0",
+        "A|XM_017018829.1|COL2A1|snp|1|intron|1|-325|intron|1|0",
+        "A|XM_017018830.1|COL2A1|snp|1|intron|1|-325|intron|1|0",
+    ]
+
+    assert sorted(sj_entries) == sorted(expected_entries)
 
 
 def test_splice_annotation_without_mane(tmp_path):

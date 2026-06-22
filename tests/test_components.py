@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -10,8 +11,11 @@ from vcf_annotator.annotators.base import AnnotationResult, VariantContext
 from vcf_annotator.annotators.custom_vcf import CustomVcfAnnotator
 from vcf_annotator.annotators.splice_distance import SpliceJunctionDistanceAnnotator, _format_distance
 from vcf_annotator.chromosome import ChromosomeMapper
-from vcf_annotator.transcripts import Region, Transcript
+from vcf_annotator.transcripts import Region, Transcript, load_mane_transcripts
 from vcf_annotator.variant_utils import VariantCoordinates, compute_variant_bounds
+
+
+DATA_DIR = Path(__file__).parent / "data"
 
 
 class DummyRecord:
@@ -58,6 +62,22 @@ def build_transcript(name: str = "TX1", strand: str = "+"):
         introns=introns,
         mane=name.endswith("MANE"),
     )
+
+
+def test_load_mane_transcripts_supports_plain_text_and_gzip(tmp_path):
+    plain_path = DATA_DIR / "mane.tsv"
+    gzip_path = tmp_path / "mane-compressed.tsv"
+
+    with plain_path.open("rb") as source, gzip.open(gzip_path, "wb") as target:
+        target.write(source.read())
+
+    plain_ids, plain_gene_map = load_mane_transcripts(plain_path)
+    gzip_ids, gzip_gene_map = load_mane_transcripts(gzip_path)
+
+    assert gzip_ids == plain_ids
+    assert gzip_gene_map == plain_gene_map
+    assert "NM_130786.4" in gzip_ids
+    assert gzip_gene_map["NM_130786.4"] == "A1BG"
 
 
 def test_annotation_result_merge_broadcasts_single_row_values():
