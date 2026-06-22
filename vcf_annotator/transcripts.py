@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import csv
+import gzip
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Sequence, TextIO, Tuple
 
 
 @dataclass(frozen=True)
@@ -86,7 +87,7 @@ def load_mane_transcripts(path: Optional[Path]) -> Tuple[set, Dict[str, str]]:
     mane_ids: set = set()
     gene_map: Dict[str, str] = {}
 
-    with path.open() as handle:
+    with _open_text(path) as handle:
         reader = csv.DictReader(handle, delimiter="\t")
         for row in reader:
             refseq = row.get("RefSeq_nuc")
@@ -97,6 +98,15 @@ def load_mane_transcripts(path: Optional[Path]) -> Tuple[set, Dict[str, str]]:
                     mane_ids.add(tid.strip())
                     gene_map[tid.strip()] = gene
     return mane_ids, gene_map
+
+
+def _open_text(path: Path) -> TextIO:
+    with path.open("rb") as handle:
+        magic = handle.read(2)
+
+    if magic == b"\x1f\x8b":
+        return gzip.open(path, "rt", newline="")
+    return path.open(newline="")
 
 
 def parse_gene_pred(path: Path, mane_ids: Optional[set] = None) -> Iterator[Transcript]:
