@@ -1,4 +1,0 @@
-pysam>=0.22
-
-[test]
-pytest>=7.0
