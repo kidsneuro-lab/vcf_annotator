@@ -16,6 +16,9 @@ Run commands through the managed environment:
 uv run python -m vcf_annotator.cli --help
 ```
 
+For reference download, genePred conversion, MANE setup, and Docker usage, see
+[docs/USAGE.md](docs/USAGE.md).
+
 ## CLI Interface
 
 ```text
