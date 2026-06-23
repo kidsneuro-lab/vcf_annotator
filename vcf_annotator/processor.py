@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +36,7 @@ class VariantProcessor:
         LOG.info("Opening input VCF: %s", self.config.input_path)
         with pysam.VariantFile(str(self.config.input_path)) as reader:
             header = reader.header.copy()
+            self._ensure_record_contigs(header)
             for annotator in self.annotators:
                 annotator.register_fields(header)
 
@@ -98,6 +100,20 @@ class VariantProcessor:
             annotator.close()
 
         LOG.info("Completed annotation of %d records.", record_count)
+
+    def _ensure_record_contigs(self, header) -> None:
+        if header.contigs:
+            return
+
+        contigs = _collect_record_contigs(self.config.input_path)
+        for contig in contigs:
+            header.contigs.add(contig)
+
+        if contigs:
+            LOG.info(
+                "Input VCF header has no contig definitions; added %d contigs from records.",
+                len(contigs),
+            )
 
     def _annotate_record(self, record, alts: List[str]) -> List[AnnotationResult]:
         results: List[AnnotationResult] = []
@@ -232,6 +248,29 @@ class VariantProcessor:
         writer._columns = columns  # type: ignore[attr-defined]
         writer._extra_fields = columns[5:]  # type: ignore[attr-defined]
         return writer
+
+
+def _collect_record_contigs(path: Path) -> List[str]:
+    seen = set()
+    contigs: List[str] = []
+
+    with Path(path).open("rb") as raw_handle:
+        magic = raw_handle.read(2)
+
+    opener = gzip.open if magic == b"\x1f\x8b" else open
+    with opener(path, "rt", newline="") as handle:
+        for line in handle:
+            if not line or line.startswith("##"):
+                continue
+            if line.startswith("#"):
+                continue
+
+            contig = line.split("\t", 1)[0]
+            if contig and contig not in seen:
+                seen.add(contig)
+                contigs.append(contig)
+
+    return contigs
 
 
 def close_writer(writer: Optional[csv.DictWriter]) -> None:

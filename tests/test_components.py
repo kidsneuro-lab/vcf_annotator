@@ -10,7 +10,7 @@ pysam = pytest.importorskip("pysam")
 from vcf_annotator.annotators.base import AnnotationResult, VariantContext
 from vcf_annotator.annotators.custom_vcf import CustomVcfAnnotator
 from vcf_annotator.annotators.splice_distance import SpliceJunctionDistanceAnnotator, _format_distance
-from vcf_annotator.chromosome import ChromosomeMapper
+from vcf_annotator.chromosome import ChromosomeMapper, from_ucsc, to_ucsc
 from vcf_annotator.transcripts import Region, Transcript, load_mane_transcripts
 from vcf_annotator.variant_utils import VariantCoordinates, compute_variant_bounds
 
@@ -113,6 +113,14 @@ def test_variant_context_variant_type_classification(chrom, pos, ref, alt, expec
     assert ctx.variant_type() == expected_type
 
 
+def test_variant_context_preserves_original_chrom_and_exposes_ucsc():
+    ctx = VariantContext(DummyRecord("12", 101, "A", ("G",)), "G", 0)
+
+    assert ctx.original_chrom == "12"
+    assert ctx.chrom == "chr12"
+    assert ctx.ucsc_chrom == "chr12"
+
+
 @pytest.mark.parametrize(
     "pos, ref, alt, expected",
     [
@@ -134,6 +142,19 @@ def test_chromosome_mapper_translates_between_styles():
     mapper_plain = ChromosomeMapper(["1", "2"])
     assert mapper_plain.to_vcf("chr1") == "1"
     assert mapper_plain.to_vcf("chrM") == "MT"
+
+
+def test_chromosome_helpers_normalize_to_ucsc_and_back():
+    assert to_ucsc("1") == "chr1"
+    assert to_ucsc("X") == "chrX"
+    assert to_ucsc("MT") == "chrM"
+    assert to_ucsc("M") == "chrM"
+    assert to_ucsc("chr2") == "chr2"
+    assert to_ucsc("GL000220.1") == "GL000220.1"
+
+    assert from_ucsc("chr1", "plain") == "1"
+    assert from_ucsc("chrM", "plain") == "MT"
+    assert from_ucsc("chrUn_KI270442v1", "ucsc") == "chrUn_KI270442v1"
 
 
 def test_splice_annotator_reports_distance_and_region():
@@ -205,6 +226,21 @@ def test_custom_vcf_annotator_fetches_matching_records(tmp_path):
 
     annotator = CustomVcfAnnotator(external, "cln", ["CLNSIG"])
     context = VariantContext(DummyRecord("1", 100, "A", ("G",)), "G", 0)
+
+    result = annotator.annotate(context)
+
+    assert result.rows[0]["CLN_CLNSIG"] == "Benign"
+    assert result.tsv_rows[0]["CLN_CLNSIG"] == "Benign"
+
+    annotator.close()
+
+
+def test_custom_vcf_annotator_maps_ucsc_context_to_plain_external_vcf(tmp_path):
+    external = tmp_path / "external.vcf"
+    write_temp_vcf(external, contig="1")
+
+    annotator = CustomVcfAnnotator(external, "cln", ["CLNSIG"])
+    context = VariantContext(DummyRecord("chr1", 100, "A", ("G",)), "G", 0)
 
     result = annotator.annotate(context)
 

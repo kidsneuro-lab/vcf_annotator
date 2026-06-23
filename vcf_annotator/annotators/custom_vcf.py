@@ -5,6 +5,7 @@ from typing import Dict, List
 
 import pysam
 
+from ..chromosome import ChromosomeMapper
 from .base import AnnotationResult, Annotator, VariantContext
 
 
@@ -22,7 +23,7 @@ class CustomVcfAnnotator(Annotator):
             raise ValueError("At least one INFO field must be provided for custom VCF annotation.")
 
         self._external = pysam.VariantFile(str(self.vcf_path))
-        self._external_has_chr = any(contig.startswith("chr") for contig in self._external.header.contigs)
+        self._chrom_mapper = ChromosomeMapper(self._external.header.contigs.keys())
 
     def register_fields(self, header) -> None:
         for field in self.fields:
@@ -42,6 +43,8 @@ class CustomVcfAnnotator(Annotator):
         collected: Dict[str, List[str]] = {field: [] for field in self.fields}
 
         for record in records:
+            if record.chrom != chrom:
+                continue
             if record.pos != context.pos:
                 continue
             if record.ref != context.ref:
@@ -73,11 +76,7 @@ class CustomVcfAnnotator(Annotator):
         return [self._info_name(field) for field in self.fields]
 
     def _map_chrom(self, chrom: str) -> str:
-        if self._external_has_chr and not chrom.startswith("chr"):
-            return "chrM" if chrom in {"MT", "M"} else f"chr{chrom}"
-        if not self._external_has_chr and chrom.startswith("chr"):
-            return "MT" if chrom == "chrM" else chrom[3:]
-        return chrom
+        return self._chrom_mapper.to_external(chrom)
 
     def _info_name(self, field: str) -> str:
         return f"{self.prefix}_{field}"

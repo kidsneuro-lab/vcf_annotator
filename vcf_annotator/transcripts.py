@@ -6,6 +6,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, TextIO, Tuple
 
+from .chromosome import to_ucsc
+
 
 @dataclass(frozen=True)
 class Region:
@@ -215,11 +217,11 @@ class TranscriptIndex:
 
 
 def build_transcript_index(
-    gene_pred_path: Path, chrom_mapper, mane_path: Optional[Path] = None
+    gene_pred_path: Path, chrom_mapper=None, mane_path: Optional[Path] = None
 ) -> TranscriptIndex:
     mane_ids, _ = load_mane_transcripts(mane_path)
     transcripts = []
     for transcript in parse_gene_pred(gene_pred_path, mane_ids):
-        mapped = replace(transcript, chrom=chrom_mapper.to_vcf(transcript.chrom))
+        mapped = replace(transcript, chrom=to_ucsc(transcript.chrom))
         transcripts.append(mapped)
     return TranscriptIndex(transcripts)
