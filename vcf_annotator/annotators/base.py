@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import List, Mapping, MutableMapping, Optional
 
+from ..chromosome import to_ucsc
+
 
 @dataclass
 class AnnotationResult:
@@ -82,18 +84,22 @@ class VariantContext:
         record: pysam.VariantRecord from the input VCF.
         alt: Alternate allele string for this context.
         alt_index: Index of the alternate allele within the original record.
-        chrom: Chromosome/contig name.
+        original_chrom: Chromosome/contig name from the input VCF.
+        chrom: Canonical UCSC chromosome/contig name used for annotation lookups.
+        ucsc_chrom: Alias for the canonical UCSC chromosome/contig name.
         pos: 1-based genomic position.
         ref: Reference allele string.
     """
 
-    __slots__ = ("record", "alt", "alt_index", "chrom", "pos", "ref")
+    __slots__ = ("record", "alt", "alt_index", "original_chrom", "chrom", "ucsc_chrom", "pos", "ref")
 
-    def __init__(self, record, alt: str, alt_index: int):
+    def __init__(self, record, alt: str, alt_index: int, chrom: Optional[str] = None):
         self.record = record
         self.alt = alt
         self.alt_index = alt_index
-        self.chrom = record.chrom
+        self.original_chrom = record.chrom
+        self.ucsc_chrom = chrom or to_ucsc(record.chrom)
+        self.chrom = self.ucsc_chrom
         self.pos = record.pos
         self.ref = record.ref
 
