@@ -271,3 +271,47 @@ def test_input_without_contig_header_adds_record_contigs_to_output(tmp_path):
     assert records[0].chrom == "1"
     assert records[0].pos == 100
     assert records[0].alts == ("G",)
+
+
+def test_no_annotators_preserves_sample_format_values(tmp_path):
+    input_vcf = tmp_path / "sample_format.vcf"
+    input_vcf.write_text(
+        "##fileformat=VCFv4.2\n"
+        "##contig=<ID=2,length=234003741>\n"
+        "##INFO=<ID=AF,Number=A,Type=Float,Description=\"Allele Frequency\">\n"
+        "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+        "##FORMAT=<ID=DP,Number=1,Type=Integer,Description=\"Read Depth\">\n"
+        "##FORMAT=<ID=EC,Number=A,Type=Integer,Description=\"alternate allele counts\">\n"
+        "##FORMAT=<ID=AD,Number=R,Type=Integer,Description=\"allelic depths\">\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSAMPLE\n"
+        "2\t227872182\trs2228557\tG\tA,C\t.\tPASS\tAF=0.495,0.1\tGT:DP:EC:AD\t1/2:315:156,7:159,156,7\n"
+    )
+    output_vcf = tmp_path / "annotated.vcf"
+
+    run_cli(
+        [
+            "--input",
+            str(input_vcf),
+            "--output",
+            str(output_vcf),
+        ]
+    )
+
+    with pysam.VariantFile(str(output_vcf)) as reader:
+        records = list(reader)
+
+    assert len(records) == 2
+    first, second = records
+    assert first.alts == ("A",)
+    assert tuple(first.info["AF"]) == pytest.approx((0.495,))
+    assert first.samples["SAMPLE"]["GT"] == (1, 0)
+    assert first.samples["SAMPLE"]["DP"] == 315
+    assert first.samples["SAMPLE"]["EC"] == (156,)
+    assert first.samples["SAMPLE"]["AD"] == (159, 156)
+
+    assert second.alts == ("C",)
+    assert tuple(second.info["AF"]) == pytest.approx((0.1,))
+    assert second.samples["SAMPLE"]["GT"] == (0, 1)
+    assert second.samples["SAMPLE"]["DP"] == 315
+    assert second.samples["SAMPLE"]["EC"] == (7,)
+    assert second.samples["SAMPLE"]["AD"] == (159, 7)
