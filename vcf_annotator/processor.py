@@ -186,9 +186,76 @@ class VariantProcessor:
                 new_record.info[key] = selected
 
         for sample in base_record.samples:
-            new_record.samples[sample] = base_record.samples[sample]
+            self._copy_sample_values(
+                new_record.samples[sample],
+                base_record.samples[sample],
+                original_header,
+                alt_index,
+            )
 
         return new_record
+
+    def _copy_sample_values(
+        self,
+        new_sample,
+        base_sample,
+        original_header,
+        alt_index: int,
+    ) -> None:
+        for key in base_sample.keys():
+            value = base_sample[key]
+            if value is None:
+                continue
+
+            if key == "GT":
+                new_sample[key] = self._remap_genotype(value, alt_index)
+                new_sample.phased = base_sample.phased
+                continue
+
+            format_def = original_header.formats.get(key)
+            selected = self._extract_format_value(value, format_def, alt_index)
+            if selected is not None:
+                new_sample[key] = selected
+
+    def _remap_genotype(self, value, alt_index: int):
+        selected_alt_allele = alt_index + 1
+        remapped = []
+        for allele in value:
+            if allele is None:
+                remapped.append(None)
+            elif allele == 0:
+                remapped.append(0)
+            elif allele == selected_alt_allele:
+                remapped.append(1)
+            else:
+                remapped.append(0)
+        return tuple(remapped)
+
+    def _extract_format_value(self, value, format_def, alt_index: int):
+        if value is None:
+            return None
+
+        if format_def is None:
+            return value
+
+        number = format_def.number
+
+        if number == "A":
+            if isinstance(value, tuple):
+                if len(value) > alt_index:
+                    return value[alt_index]
+                return value[-1] if value else None
+            return value
+
+        if number == "R":
+            if isinstance(value, tuple):
+                idx = alt_index + 1
+                if len(value) > idx:
+                    return (value[0], value[idx])
+                return (value[0], value[-1]) if value else None
+            return value
+
+        return value
 
     def _extract_info_value(self, value, info_def, alt_index: int):
         if value is None:
