@@ -22,12 +22,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.13.14"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@11245c7e122cd1c2297e8115d1e43fe1570f6270 # v8.2.0
+        uses: astral-sh/setup-uv@71966eff34a27b0a62ed4b9f6f6e383e071b1bb5 # v8.2.0
 
       - name: Install dependencies
         run: uv sync --extra test
