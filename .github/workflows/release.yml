@@ -27,7 +27,7 @@ jobs:
           python-version: "3.13.14"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@71966eff34a27b0a62ed4b9f6f6e383e071b1bb5 # v8.2.0
+        uses: astral-sh/setup-uv@7e7e21ddc30bd66316c7b9889405f485b5022c96 # v8.2.0
 
       - name: Install dependencies
         run: uv sync --extra test
