@@ -14,7 +14,7 @@ on:
       - .gitignore
 
 jobs:
-  test:
+  python-tests:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
 
@@ -43,3 +43,43 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  container-tests:
+    name: Container ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build release image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          platforms: ${{ matrix.platform }}
+          target: build
+          tags: vcf-annotator:pr
+
+      - name: Test release image
+        run: |
+          docker run --rm --platform "${{ matrix.platform }}" vcf-annotator:pr --help
+          docker run --rm \
+            --platform "${{ matrix.platform }}" \
+            -v "${PWD}:/work" \
+            vcf-annotator:pr \
+            --input /work/tests/data/input.vcf \
+            --output /tmp/annotated.vcf
