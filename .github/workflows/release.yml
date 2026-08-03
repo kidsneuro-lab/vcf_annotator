@@ -50,16 +50,29 @@ jobs:
           echo "IMAGE_NAME=${image_name}" >> "$GITHUB_ENV"
           echo "VERSION_TAG=${version_tag}" >> "$GITHUB_ENV"
 
-      - name: Build Docker testing target
-        run: docker build --target testing -t vcf-annotator:test .
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
 
-      - name: Build release Docker image
-        run: |
-          docker build \
-            --target build \
-            -t "${IMAGE_NAME}:${VERSION_TAG}" \
-            -t "${IMAGE_NAME}:latest" \
-            .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker testing target
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          target: testing
+          tags: vcf-annotator:test
+
+      - name: Build release Docker image for testing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          target: build
+          tags: ${{ env.IMAGE_NAME }}:${{ env.VERSION_TAG }}
 
       - name: Test release Docker image
         run: |
@@ -78,9 +91,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish Docker image
-        run: |
-          docker push "${IMAGE_NAME}:${VERSION_TAG}"
-          docker push "${IMAGE_NAME}:latest"
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          target: build
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.VERSION_TAG }}
+            ${{ env.IMAGE_NAME }}:latest
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
